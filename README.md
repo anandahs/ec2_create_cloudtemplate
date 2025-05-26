@@ -30,8 +30,8 @@ export AWS_DEFAULT_REGION="us-east-1"
 - **Security Group**: Controls inbound and outbound traffic to the EC2 instance (SSH access)
 - **EC2 Instance**: t2.micro instance running Amazon Linux 2023
 - **Key Pair**: SSH key pair for secure access to the instance
-- **Users**: ec2-user (default) and risksys (custom) users
-- **Python Environment**: Python 3.11 with a virtual environment at /apps/risksys/venv
+- **Users**: ec2-user (default) and testaccount (custom) users
+- **Python Environment**: Python 3.11 with a virtual environment at /apps/testaccount/venv
 
 ## Deployment
 
@@ -51,7 +51,7 @@ export AWS_DEFAULT_REGION="us-east-1"
 2. **Deploy CloudFormation Stack**:
    ```bash
    aws cloudformation create-stack \
-     --stack-name risksys-ec2-stack \
+     --stack-name testaccount-ec2-stack \
      --template-body file://create-ec2-stack.yaml \
      --parameters ParameterKey=PublicKeyMaterial,ParameterValue="$(cat ~/.ssh/ec2_key.pub)" \
      --capabilities CAPABILITY_IAM \
@@ -61,14 +61,14 @@ export AWS_DEFAULT_REGION="us-east-1"
 3. **Monitor Stack Creation**:
    ```bash
    aws cloudformation describe-stacks \
-     --stack-name risksys-ec2-stack \
+     --stack-name testaccount-ec2-stack \
      --region us-east-1
    ```
 
 4. **Get EC2 Instance Public IP**:
    ```bash
    aws cloudformation describe-stacks \
-     --stack-name risksys-ec2-stack \
+     --stack-name testaccount-ec2-stack \
      --query "Stacks[0].Outputs[?OutputKey=='PublicIP'].OutputValue" \
      --output text \
      --region us-east-1
@@ -79,10 +79,10 @@ export AWS_DEFAULT_REGION="us-east-1"
 Connect to the instance using SSH:
 
 ```bash
-ssh -i ~/.ssh/ec2_key risksys@<PUBLIC_IP>
+ssh -i ~/.ssh/ec2_key testaccount@<PUBLIC_IP>
 ```
 
-The risksys user will have:
+The testaccount user will have:
 - Python 3.11 virtual environment automatically activated
 - Sudo privileges for administrative tasks
 - Welcome message with usage instructions
@@ -92,7 +92,7 @@ The risksys user will have:
 Once connected, verify the Python environment:
 
 ```bash
-python /apps/risksys/test_python.py
+python /apps/testaccount/test_python.py
 ```
 
 ## Cleanup
@@ -101,14 +101,14 @@ When you're done testing, remove all resources:
 
 ```bash
 aws cloudformation delete-stack \
-  --stack-name risksys-ec2-stack \
+  --stack-name testaccount-ec2-stack \
   --region us-east-1
 ```
 
 ## Features
 
 - **Isolated Python Environment**: Dedicated virtual environment for Python development
-- **Multiple Users**: Both ec2-user and risksys users available
+- **Multiple Users**: Both ec2-user and testaccount users available
 - **Secure Access**: SSH key-based authentication
 - **Automatic Setup**: Python environment automatically activated on login
 - **Complete Infrastructure**: VPC, subnet, security groups, and all necessary components

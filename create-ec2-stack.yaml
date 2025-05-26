@@ -114,19 +114,19 @@ Resources:
           # Install Python 3.11
           yum install -y python3.11 python3.11-devel
           
-          # Create risksys user
-          useradd -m -s /bin/bash risksys
+          # Create testaccount user
+          useradd -m -s /bin/bash testaccount
           
-          # Create .ssh directory for the risksys user
-          mkdir -p /home/risksys/.ssh
+          # Create .ssh directory for the testaccount user
+          mkdir -p /home/testaccount/.ssh
           
-          # Add the public key to risksys user's authorized_keys
-          echo "${PublicKeyMaterial}" > /home/risksys/.ssh/authorized_keys
+          # Add the public key to testaccount user's authorized_keys
+          echo "${PublicKeyMaterial}" > /home/testaccount/.ssh/authorized_keys
           
-          # Set proper permissions for risksys
-          chmod 700 /home/risksys/.ssh
-          chmod 600 /home/risksys/.ssh/authorized_keys
-          chown -R risksys:risksys /home/risksys/.ssh
+          # Set proper permissions for testaccount
+          chmod 700 /home/testaccount/.ssh
+          chmod 600 /home/testaccount/.ssh/authorized_keys
+          chown -R testaccount:testaccount /home/testaccount/.ssh
           
           # Explicitly add the same key to ec2-user's authorized_keys
           mkdir -p /home/ec2-user/.ssh
@@ -135,23 +135,23 @@ Resources:
           chmod 600 /home/ec2-user/.ssh/authorized_keys
           chown -R ec2-user:ec2-user /home/ec2-user/.ssh
           
-          # Add risksys to sudoers
-          echo "risksys ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/risksys
-          chmod 440 /etc/sudoers.d/risksys
+          # Add testaccount to sudoers
+          echo "testaccount ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/testaccount
+          chmod 440 /etc/sudoers.d/testaccount
           
-          # Create /apps/risksys directory
-          mkdir -p /apps/risksys
-          chown risksys:risksys /apps/risksys
+          # Create /apps/testaccount directory
+          mkdir -p /apps/testaccount
+          chown testaccount:testaccount /apps/testaccount
           
-          # Create and set up Python virtual environment as risksys user
-          su - risksys -c "python3.11 -m venv /apps/risksys/venv"
+          # Create and set up Python virtual environment as testaccount user
+          su - testaccount -c "python3.11 -m venv /apps/testaccount/venv"
           
-          # Add virtual environment activation to risksys user's .bashrc
-          echo 'export PATH="/apps/risksys/venv/bin:$PATH"' >> /home/risksys/.bashrc
-          echo 'source /apps/risksys/venv/bin/activate' >> /home/risksys/.bashrc
+          # Add virtual environment activation to testaccount user's .bashrc
+          echo 'export PATH="/apps/testaccount/venv/bin:$PATH"' >> /home/testaccount/.bashrc
+          echo 'source /apps/testaccount/venv/bin/activate' >> /home/testaccount/.bashrc
           
           # Create a simple test script to verify Python installation
-          cat > /apps/risksys/test_python.py << 'EOF'
+          cat > /apps/testaccount/test_python.py << 'EOF'
           import sys
           print(f"Python version: {sys.version}")
           print(f"Python executable: {sys.executable}")
@@ -159,25 +159,25 @@ Resources:
           EOF
           
           # Set ownership of the test script
-          chown risksys:risksys /apps/risksys/test_python.py
+          chown testaccount:testaccount /apps/testaccount/test_python.py
           
-          # Create a welcome message for risksys user
-          cat > /home/risksys/welcome.txt << 'EOF'
-          Welcome to the risksys environment!
+          # Create a welcome message for testaccount user
+          cat > /home/testaccount/welcome.txt << 'EOF'
+          Welcome to the testaccount environment!
           
           Your Python 3.11 virtual environment is automatically activated.
-          The virtual environment is located at: /apps/risksys/venv
+          The virtual environment is located at: /apps/testaccount/venv
           
           To test your Python installation, run:
-          python /apps/risksys/test_python.py
+          python /apps/testaccount/test_python.py
           
           Enjoy coding!
           EOF
           
-          chown risksys:risksys /home/risksys/welcome.txt
+          chown testaccount:testaccount /home/testaccount/welcome.txt
           
           # Display welcome message on login
-          echo 'cat ~/welcome.txt' >> /home/risksys/.bashrc
+          echo 'cat ~/welcome.txt' >> /home/testaccount/.bashrc
       Tags:
         - Key: Name
           Value: Amazon Linux 2023 with Python 3.11
