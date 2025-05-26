@@ -1,0 +1,200 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for t2.micro EC2 instance with Amazon Linux 2023 AMI, Python 3.11, and virtual environment'
+
+Parameters:
+  PublicKeyMaterial:
+    Description: The public SSH key to use for both ec2-user and risksys user
+    Type: String
+    Default: "testpublickeyvalue"
+
+Resources:
+  # VPC with CIDR 10.0.0.0/16
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: EC2-VPC
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: EC2-IGW
+
+  # Attach Internet Gateway to VPC
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Public Subnet
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: Public Subnet
+
+  # Route Table
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Public Route Table
+
+  # Public Route
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # Associate Route Table with Subnet
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  # Security Group
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  # Import the public key for both users
+  ImportedKeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: shared-ssh-key
+      PublicKeyMaterial: !Ref PublicKeyMaterial
+
+  # EC2 Instance with Amazon Linux 2023 AMI, Python 3.11, and virtual environment
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds:
+        - !GetAtt EC2SecurityGroup.GroupId
+      KeyName: !Ref ImportedKeyPair
+      # Using Amazon Linux 2023 AMI
+      ImageId: !Sub '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}'
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          # Update system packages
+          yum update -y
+          
+          # Install development tools and Python dependencies
+          yum groupinstall "Development Tools" -y
+          yum install -y openssl-devel bzip2-devel libffi-devel zlib-devel readline-devel sqlite-devel
+          
+          # Install Python 3.11
+          yum install -y python3.11 python3.11-devel
+          
+          # Create risksys user
+          useradd -m -s /bin/bash risksys
+          
+          # Create .ssh directory for the risksys user
+          mkdir -p /home/risksys/.ssh
+          
+          # Add the public key to risksys user's authorized_keys
+          echo "${PublicKeyMaterial}" > /home/risksys/.ssh/authorized_keys
+          
+          # Set proper permissions for risksys
+          chmod 700 /home/risksys/.ssh
+          chmod 600 /home/risksys/.ssh/authorized_keys
+          chown -R risksys:risksys /home/risksys/.ssh
+          
+          # Explicitly add the same key to ec2-user's authorized_keys
+          mkdir -p /home/ec2-user/.ssh
+          echo "${PublicKeyMaterial}" > /home/ec2-user/.ssh/authorized_keys
+          chmod 700 /home/ec2-user/.ssh
+          chmod 600 /home/ec2-user/.ssh/authorized_keys
+          chown -R ec2-user:ec2-user /home/ec2-user/.ssh
+          
+          # Add risksys to sudoers
+          echo "risksys ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/risksys
+          chmod 440 /etc/sudoers.d/risksys
+          
+          # Create /apps/risksys directory
+          mkdir -p /apps/risksys
+          chown risksys:risksys /apps/risksys
+          
+          # Create and set up Python virtual environment as risksys user
+          su - risksys -c "python3.11 -m venv /apps/risksys/venv"
+          
+          # Add virtual environment activation to risksys user's .bashrc
+          echo 'export PATH="/apps/risksys/venv/bin:$PATH"' >> /home/risksys/.bashrc
+          echo 'source /apps/risksys/venv/bin/activate' >> /home/risksys/.bashrc
+          
+          # Create a simple test script to verify Python installation
+          cat > /apps/risksys/test_python.py << 'EOF'
+          import sys
+          print(f"Python version: {sys.version}")
+          print(f"Python executable: {sys.executable}")
+          print("Python environment is working correctly!")
+          EOF
+          
+          # Set ownership of the test script
+          chown risksys:risksys /apps/risksys/test_python.py
+          
+          # Create a welcome message for risksys user
+          cat > /home/risksys/welcome.txt << 'EOF'
+          Welcome to the risksys environment!
+          
+          Your Python 3.11 virtual environment is automatically activated.
+          The virtual environment is located at: /apps/risksys/venv
+          
+          To test your Python installation, run:
+          python /apps/risksys/test_python.py
+          
+          Enjoy coding!
+          EOF
+          
+          chown risksys:risksys /home/risksys/welcome.txt
+          
+          # Display welcome message on login
+          echo 'cat ~/welcome.txt' >> /home/risksys/.bashrc
+      Tags:
+        - Key: Name
+          Value: Amazon Linux 2023 with Python 3.11
+
+Outputs:
+  VpcId:
+    Description: ID of the VPC
+    Value: !Ref VPC
+
+  InstanceId:
+    Description: ID of the EC2 instance
+    Value: !Ref EC2Instance
+
+  PublicIP:
+    Description: Public IP address of the EC2 instance
+    Value: !GetAtt EC2Instance.PublicIp
+
+  PublicDNS:
+    Description: Public DNS name of the EC2 instance
+    Value: !GetAtt EC2Instance.PublicDnsName
